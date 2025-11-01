@@ -51,5 +51,5 @@ def lambda_handler(event, context):
         print(f"Erro: {str(e)}")
 ```
 testing add image
-![Descrição da imagem](./imagens/confirm_creation.png)
+![Descrição da imagem](./images/confirm_creation.png)
 
