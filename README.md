@@ -1,171 +1,69 @@
+# ☁️ Automatizando a Configuração do S3 Object Lambda com AWS CloudFormation
 
-## ⚙️ Arquitetura da Tarefa
+## 📘 Descrição do Projeto
+Este projeto faz parte do desafio da **Digital Innovation One (DIO)** e tem como objetivo **automatizar a criação e configuração do S3 Object Lambda** utilizando o **AWS CloudFormation**.
 
-A arquitetura criada neste projeto contém os seguintes componentes:
+A proposta é integrar os serviços **S3**, **Lambda** e **IAM**, criando uma estrutura automatizada que transforma ou personaliza os dados armazenados em um bucket S3 no momento em que são acessados.
 
-1. **Bucket S3** – armazena os objetos originais.  
-2. **Função AWS Lambda** – processa os objetos solicitados (por exemplo, insere mensagens ou filtra dados).  
-3. **Access Point padrão** – usado como ponte para o Object Lambda.  
-4. **Object Lambda Access Point** – expõe a versão processada dos objetos.  
-5. **IAM Role** – define permissões para que a Lambda acesse o S3 e grave logs no CloudWatch.
+---
 
-## 🧩 Modelo CloudFormation (JSON)
+## 🎯 Objetivos de Aprendizagem
+- Compreender o funcionamento do **S3 Object Lambda**;  
+- Aprender a **automatizar** recursos da AWS com **CloudFormation**;  
+- Integrar **Lambda + S3 + IAM** de forma prática e segura;  
+- Documentar o processo técnico e usá-lo como material de apoio;  
+- Publicar o projeto no **GitHub** como parte do portfólio técnico.
 
-O arquivo `s3-object-lambda.json` automatiza toda a configuração descrita acima.
+---
 
-Ele cria:
-- Um bucket S3 de origem;  
-- Uma função Lambda com permissão de acesso ao S3;  
-- Um access point padrão e um **Object Lambda Access Point**;  
-- As permissões necessárias via **IAM Role**.
+## ⚙️ Arquitetura da Solução
 
-Versão JSON completa do modelo CloudFormation que automatiza a configuração do Amazon S3 Object Lambda
+A solução proposta cria automaticamente:
 
-{
-  "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Cria uma configuração S3 Object Lambda com CloudFormation",
-  "Resources": {
-    "SourceBucket": {
-      "Type": "AWS::S3::Bucket",
-      "Properties": {
-        "BucketName": {
-          "Fn::Sub": "object-lambda-source-${AWS::AccountId}"
-        }
-      }
-    },
-    "ObjectLambdaRole": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "AssumeRolePolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "lambda.amazonaws.com"
-              },
-              "Action": "sts:AssumeRole"
-            }
-          ]
-        },
-        "Policies": [
-          {
-            "PolicyName": "LambdaS3Access",
-            "PolicyDocument": {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": ["s3:GetObject", "s3:ListBucket"],
-                  "Resource": "*"
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents"
-                  ],
-                  "Resource": "*"
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "ObjectLambdaFunction": {
-      "Type": "AWS::Lambda::Function",
-      "Properties": {
-        "FunctionName": {
-          "Fn::Sub": "s3-object-lambda-func-${AWS::AccountId}"
-        },
-        "Role": {
-          "Fn::GetAtt": ["ObjectLambdaRole", "Arn"]
-        },
-        "Runtime": "python3.9",
-        "Handler": "index.lambda_handler",
-        "Code": {
-          "ZipFile": {
-            "Fn::Join": [
-              "\n",
-              [
-                "import boto3",
-                "import json",
-                "def lambda_handler(event, context):",
-                "    s3 = boto3.client('s3')",
-                "    get_obj_context = event['getObjectContext']",
-                "    request_route = get_obj_context['outputRoute']",
-                "    request_token = get_obj_context['outputToken']",
-                "",
-                "    s3.write_get_object_response(",
-                "        Body=b'Arquivo processado via Object Lambda!\\n',",
-                "        RequestRoute=request_route,",
-                "        RequestToken=request_token",
-                "    )",
-                "",
-                "    return {'status_code': 200, 'msg': 'Processamento concluído'}"
-              ]
-            ]
-          }
-        }
-      }
-    },
-    "StandardAccessPoint": {
-      "Type": "AWS::S3::AccessPoint",
-      "Properties": {
-        "Bucket": {
-          "Ref": "SourceBucket"
-        },
-        "Name": {
-          "Fn::Sub": "standard-ap-${AWS::AccountId}"
-        },
-        "PublicAccessBlockConfiguration": {
-          "BlockPublicAcls": true,
-          "BlockPublicPolicy": true,
-          "IgnorePublicAcls": true,
-          "RestrictPublicBuckets": true
-        }
-      }
-    },
-    "ObjectLambdaAccessPoint": {
-      "Type": "AWS::S3ObjectLambda::AccessPoint",
-      "Properties": {
-        "Name": {
-          "Fn::Sub": "object-lambda-ap-${AWS::AccountId}"
-        },
-        "ObjectLambdaConfiguration": {
-          "SupportingAccessPoint": {
-            "Ref": "StandardAccessPoint"
-          },
-          "TransformationConfigurations": [
-            {
-              "Actions": ["GetObject"],
-              "ContentTransformation": {
-                "AwsLambda": {
-                  "FunctionArn": {
-                    "Fn::GetAtt": ["ObjectLambdaFunction", "Arn"]
-                  }
-                }
-              }
-            }
-          ]
-        }
-      }
-    }
-  },
-  "Outputs": {
-    "BucketName": {
-      "Description": "Nome do bucket de origem",
-      "Value": {
-        "Ref": "SourceBucket"
-      }
-    },
-    "ObjectLambdaAPArn": {
-      "Description": "ARN do Object Lambda Access Point",
-      "Value": {
-        "Fn::GetAtt": ["ObjectLambdaAccessPoint", "Arn"]
-      }
-    }
-  }
-}
+1. **Bucket S3** – repositório dos arquivos originais;  
+2. **Função Lambda** – responsável por modificar ou processar o conteúdo dos objetos;  
+3. **Access Point padrão do S3** – usado como intermediário;  
+4. **Object Lambda Access Point** – fornece os dados processados;  
+5. **IAM Role** – garante as permissões necessárias para execução da função Lambda e acesso ao S3.
+
+### 🔁 Fluxo do processo
+> O cliente solicita um objeto → o Object Lambda chama a função Lambda → a função processa o arquivo → o objeto transformado é devolvido ao cliente.
+
+---
+
+## 🧩 Arquivos do Projeto
+
+📦 s3-object-lambda/
+├── s3-object-lambda.json
+├── README.md
+└── /images
+├── stack-created.png
+├── lambda-execution.png
+└── object-lambda-access.png
+
+
+---
+
+## 🧱 Template CloudFormation (JSON)
+
+O arquivo `s3-object-lambda.json` automatiza toda a criação de recursos da AWS.  
+Ele cria o bucket S3, a função Lambda, o access point e o Object Lambda Access Point.
+
+Trecho de exemplo da função Lambda utilizada no template:
+
+```python
+import boto3
+
+def lambda_handler(event, context):
+    s3 = boto3.client('s3')
+    get_obj_context = event['getObjectContext']
+    route = get_obj_context['outputRoute']
+    token = get_obj_context['outputToken']
+
+    s3.write_get_object_response(
+        Body=b"Arquivo processado pelo Object Lambda!",
+        RequestRoute=route,
+        RequestToken=token
+    )
+
+    return {'status_code': 200, 'mensagem': 'Processamento concluído'}
